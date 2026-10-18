@@ -2,20 +2,29 @@
 
 #define BUTTON_IN 16  // Кнопка підключена до GPIO 16
 
-volatile uint32_t button_counter = 0;  // volatile обов'язковий для змінних, які змінюються всередині ISR
+volatile uint32_t button_counter = 0; 
+uint32_t last_count = 0; 
 
-uint32_t last_count = 0; // Змінна для відслідковування змін у головному циклі
+// Змінна для збереження часу останнього підтвердженого натискання (в мікросекундах)
+// uint64_t потрібен, бо esp_timer_get_time() повертає 64-бітне число
+volatile uint64_t last_interrupt_time = 0; 
 
-// Швидка функція обробки переривань (ISR), яка розміщується в оперативній пам'яті (IRAM)
+// Швидка функція обробки переривань (ISR)
 void IRAM_ATTR button_isr() {
-  button_counter++;
+  uint64_t interrupt_time = esp_timer_get_time(); // Отримуємо поточний час у мікросекундах
+  
+  // Якщо з моменту останнього натискання пройшло більше ніж 50 000 мікросекунд (50 мс)
+  if (interrupt_time - last_interrupt_time > 1000000) {
+    button_counter++;
+    last_interrupt_time = interrupt_time; // Оновлюємо час останнього спрацьовування
+  }
 }
 
 void setup() {
   pinMode(BUTTON_IN, INPUT_PULLUP);
   Serial.begin(115200);
 
-  // Прив'язка переривання. FALLING означає спрацьовування при натисканні (перехід з 1 в 0)
+  // Прив'язка переривання
   attachInterrupt(digitalPinToInterrupt(BUTTON_IN), button_isr, FALLING);
 }
 
@@ -28,4 +37,5 @@ void loop() {
 
   delay(10);
 }
+
 
